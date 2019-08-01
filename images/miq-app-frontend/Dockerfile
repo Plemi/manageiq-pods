@@ -1,4 +1,4 @@
-FROM plemi/manageiq-pods:backend-latest-hammer
+FROM plemipublic/manageiq-pods:backend-latest-hammer
 MAINTAINER ManageIQ https://github.com/ManageIQ/manageiq-appliance-build
 
 ## Set build ARGs
