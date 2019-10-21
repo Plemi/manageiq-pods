@@ -1,4 +1,5 @@
-FROM manageiq/manageiq-pods:backend-latest
+ARG IMAGE_REF=latest
+FROM manageiq/manageiq-pods:backend-${IMAGE_REF}
 MAINTAINER ManageIQ https://github.com/ManageIQ/manageiq-appliance-build
 
 ## Set build ARGs
@@ -21,8 +22,7 @@ LABEL name="manageiq" \
       io.openshift.tags="ManageIQ,miq,manageiq"
 
 ## Install EPEL repo, yum necessary packages for the build without docs, clean all caches
-RUN yum -y install centos-release-scl-rh && \
-    yum -y install httpd --setopt=tsflags=nodocs && \
+RUN yum -y install httpd --setopt=tsflags=nodocs && \
     yum clean all
 
 ## GIT clone service UI repo (SUI)
