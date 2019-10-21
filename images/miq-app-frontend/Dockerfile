@@ -1,8 +1,9 @@
-FROM manageiq/manageiq-pods:backend-latest
+ARG IMAGE_REF=latest-ivanchuk
+FROM manageiq/manageiq-pods:backend-${IMAGE_REF}
 MAINTAINER ManageIQ https://github.com/ManageIQ/manageiq-appliance-build
 
 ## Set build ARGs
-ARG REF=master
+ARG REF=ivanchuk
 
 ## Set ENV, LANG only needed if building with docker-1.8
 ENV SUI_ROOT=/opt/manageiq/manageiq-ui-service
@@ -10,7 +11,7 @@ ENV SUI_ROOT=/opt/manageiq/manageiq-ui-service
 ## Atomic/OpenShift Labels
 LABEL name="manageiq" \
       vendor="ManageIQ" \
-      version="Master" \
+      version="Ivanchuk" \
       release=${REF} \
       url="http://manageiq.org/" \
       summary="ManageIQ appliance image" \
@@ -21,8 +22,7 @@ LABEL name="manageiq" \
       io.openshift.tags="ManageIQ,miq,manageiq"
 
 ## Install EPEL repo, yum necessary packages for the build without docs, clean all caches
-RUN yum -y install centos-release-scl-rh && \
-    yum -y install httpd --setopt=tsflags=nodocs && \
+RUN yum -y install httpd --setopt=tsflags=nodocs && \
     yum clean all
 
 ## GIT clone service UI repo (SUI)

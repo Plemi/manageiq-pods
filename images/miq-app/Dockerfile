@@ -1,8 +1,8 @@
-FROM manageiq/ruby:2.4
+FROM manageiq/ruby:2.5
 MAINTAINER ManageIQ https://github.com/ManageIQ/manageiq-appliance-build
 
 ## Set build ARGs
-ARG REF=master
+ARG REF=ivanchuk
 
 ## Set ENV, LANG only needed if building with docker-1.8
 ENV TERM=xterm \
@@ -16,7 +16,7 @@ ENV TERM=xterm \
 ## Atomic/OpenShift Labels
 LABEL name="manageiq" \
       vendor="ManageIQ" \
-      version="Master" \
+      version="Ivanchuk" \
       release=${REF} \
       url="http://manageiq.org/" \
       summary="ManageIQ appliance image" \
@@ -25,13 +25,8 @@ LABEL name="manageiq" \
       io.k8s.description="ManageIQ is a management and automation platform for virtual, private, and hybrid cloud infrastructures." \
       io.openshift.tags="ManageIQ,miq,manageiq"
 
-# Fetch MIQ repo for http-parser
-RUN curl -sSLko /etc/yum.repos.d/manageiq-ManageIQ-Master-epel-7.repo \
-      https://copr.fedorainfracloud.org/coprs/manageiq/ManageIQ-Master/repo/epel-7/manageiq-ManageIQ-Master-epel-7.repo
-
 ## Install EPEL repo, yum necessary packages for the build without docs, clean all caches
-RUN yum -y install centos-release-scl-rh \
-                   https://rpm.nodesource.com/pub_8.x/el/7/x86_64/nodesource-release-el7-1.noarch.rpm && \
+RUN yum -y install https://rpm.nodesource.com/pub_10.x/el/7/x86_64/nodesource-release-el7-1.noarch.rpm && \
     yum -y install --setopt=tsflags=nodocs \
                    chrony                  \
                    cmake                   \
@@ -42,6 +37,7 @@ RUN yum -y install centos-release-scl-rh \
                    http-parser             \
                    initscripts             \
                    libcurl-devel           \
+                   libpq                   \
                    libtool                 \
                    libxslt-devel           \
                    logrotate               \
@@ -53,8 +49,7 @@ RUN yum -y install centos-release-scl-rh \
                    openscap-scanner        \
                    patch                   \
                    psmisc                  \
-                   rh-postgresql95-postgresql-devel  \
-                   rh-postgresql95-postgresql-libs \
+                   postgresql-devel        \
                    sqlite-devel            \
                    sysvinit-tools          \
                    which                   \
@@ -93,7 +88,7 @@ RUN source /etc/default/evm && \
     npm cache clean --force && \
     bower cache clean && \
     find ${RUBY_GEMS_ROOT}/gems/ -name .git | xargs rm -rvf && \
-    find ${RUBY_GEMS_ROOT}/gems/ | grep "\.s\?o$" | xargs rm -rvf && \
+    find ${RUBY_GEMS_ROOT}/gems/ | grep "\.o$" | xargs rm -rvf && \
     rm -rvf ${RUBY_GEMS_ROOT}/gems/rugged-*/vendor/libgit2/build && \
     rm -rvf ${RUBY_GEMS_ROOT}/cache/* && \
     rm -rvf /root/.bundle/cache && \
