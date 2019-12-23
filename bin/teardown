@@ -1,22 +1,21 @@
 #!/bin/bash
 
 oc delete all -l app=manageiq
-oc delete all -l app=manageiq-ext-db
 
 oc get pvc -o name |xargs oc delete
 
 oc delete secret -l app=manageiq
-oc delete secret -l app=manageiq-ext-db
+oc delete secret tls-secret
 
 oc delete serviceaccount miq-anyuid
-oc delete serviceaccount miq-privileged
 oc delete serviceaccount miq-orchestrator
 oc delete serviceaccount miq-httpd
 
 oc delete cm postgresql-configs
 oc delete cm httpd-configs
 oc delete cm httpd-auth-configs
-oc delete cm miq-logs-config
 
 oc delete rolebinding edit
 oc delete rolebinding view
+
+oc delete ingress httpd

@@ -5,7 +5,7 @@
 
 ## Purpose
 
-This example gives a base template to deploy a multi-pod ManageIQ appliance with the DB stored in a persistent volume on OpenShift. It provides a step-by-step setup including cluster administrative tasks as well as basic user information and commands. The ultimate goal of the project is to be able to decompose the ManageIQ appliance into several containers running on a pod or a series of pods.
+This example gives a base template to deploy a multi-pod ManageIQ appliance with the DB stored in a persistent volume on OpenShift. It provides a step-by-step setup including cluster administrative tasks as well as basic user information and commands. The ultimate goal of the project is to be able to decompose the ManageIQ appliance into several containers.
 
 ### Prerequisites:
 
@@ -25,8 +25,6 @@ Other sizing considerations:
 
 * Recommendations assume MIQ will be the only application running on this cluster.
 * Alternatively, you can provision an infrastructure node to run registry/metrics/router/logging pods.
-* Each MIQ application pod will consume at least 3GB of RAM on initial deployment (blank deployment without providers).
-* RAM consumption will ramp up higher depending on appliance use, once providers are added expect higher resource consumption.
 
 ### Installing
 
@@ -45,16 +43,12 @@ _**Note:**_ This section assumes you have a basic user.
    Next, create the project as follows:
 
 ```bash
-$ oc new-project <project_name> \
---description="<description>" \
---display-name="<display_name>"
+$ oc new-project <project_name>
 ```
-
-   _At a minimum, only `<project_name>` is required._
 
 ### Add the miq-anyuid and miq-orchestrator service accounts to the anyuid security context
 
-_**Note:**_ The current MIQ image requires the root user.
+_**Note:**_ The current MIQ images require the root user.
 
 These service accounts for your namespace (project) must be added to the anyuid SCC before pods using the service accounts can run as root.
 
@@ -69,25 +63,6 @@ Verify that the service accounts are now included in the anyuid scc
 ```
 $ oc describe scc anyuid | grep Users
 Users:					system:serviceaccount:<your-namespace>:miq-anyuid,system:serviceaccount:<your-namespace>:miq-orchestrator
-```
-
-### Add the miq-privileged service account to the privileged security context
-
-_**Note:**_ The current Embedded Ansible image requires a privileged pod.
-
-The miq-privileged service account for your namespace must be aded to the privileged SCC so that the embedded-ansible pod can function correctly.
-
-_**As admin**_
-
-```bash
-$ oc adm policy add-scc-to-user privileged system:serviceaccount:<your-namespace>:miq-privileged
-```
-
-Verify that the miq-privileged service account is now included in the privileged scc
-
-```
-$ oc describe scc privileged | grep Users
-Users:					system:serviceaccount:<your-namespace>:miq-privileged
 ```
 
 ### Set up the miq-httpd service account
@@ -136,13 +111,9 @@ $ oc describe scc anyuid | grep Users
 Users:              system:serviceaccount:<your-namespace>:miq-httpd
 ```
 
-### Make persistent volumes to host the MIQ database and application data
+### Make a persistent volume to host the MIQ database data (if necessary)
 
-A basic (single server/replica) deployment needs up to 2 persistent
-volumes (PVs) to store MIQ data:
-
-* Server   (Server specific appliance data)
-* Database (PostgreSQL, required if running database podified)
+A deployment will need a persistent volume (PV) to store data only if the database is running as a pod.
 
 NFS PV templates are provided, **please skip this step you have
 already configured persistent storage.**
@@ -155,12 +126,12 @@ _**Note:**_ Recommended permissions for the PV volumes are 777, root uid/gid own
 
 _**As admin:**_
 
-Creating the required PVs may be a one or two step process. You may
-create the initial *templates* now, and then process them and create
-the *PV*s later, or you may do all of the processing and PV creation
+Creating the required PV may be a one or two step process. You may
+create the initial *template* now, and then process them and create
+the *PV* later, or you may do all of the processing and PV creation
 in one pass
 
-There are three parameters required to process the templates. Only
+There are three parameters required to process the template. Only
 `NFS_HOST` is required, `PV_SIZE` and `BASE_PATH` have sane defaults
 already
 
@@ -170,10 +141,6 @@ already
 * `NFS_HOST` - **No Default** - Hostname or IP address of the NFS
   server
 
-_**Note**_ Repeat this process for `templates/miq-pv-db-example.yaml`
-as well if you are running your PostgreSQL database podified. The name
-of the database pv template is `manageiq-db-pv`.
-
 #### Method 1 - Create Template, Process and Create Later
 
 This method first creates the template object in OpenShift and then
@@ -181,9 +148,9 @@ demonstrates how to process the template and fill in the required
 parameters at a later time.
 
 ```
-$ oc create -f templates/miq-pv-server-example.yaml
+$ oc create -f templates/miq-pv-db-example.yaml
 # ... do stuff ...
-$ oc process manageiq-app-pv -p NFS_HOST=nfs.example.com | oc create -f -
+$ oc process manageiq-db-pv -p NFS_HOST=nfs.example.com | oc create -f -
 ```
 
 
@@ -191,7 +158,7 @@ $ oc process manageiq-app-pv -p NFS_HOST=nfs.example.com | oc create -f -
 #### Method 2 - Process Template and Create PV in one pass
 
 ```
-# oc process templates/miq-pv-server-example.yaml -p NFS_HOST=nfs.example.com | oc create -f -
+# oc process templates/miq-pv-db-example.yaml -p NFS_HOST=nfs.example.com | oc create -f -
 ```
 
 Verify PV creation
@@ -199,7 +166,6 @@ Verify PV creation
 ```bash
 $ oc get pv
 NAME      CAPACITY   ACCESSMODES   RECLAIMPOLICY   STATUS      CLAIM     STORAGECLASS   REASON    AGE
-miq-app   5Gi        RWO           Retain          Available                                      7s
 miq-db    15Gi       RWO           Retain          Available                                      1s
 ```
 
@@ -207,49 +173,31 @@ It is strongly suggested that you validate NFS share connectivity from an OpenSh
 
 ## Deploy MIQ
 
-Create the MIQ template for deployment and verify it is now available in your project
+If you wish to add a SSL certificate now, you can use your cert and key files to create the required secret:
+```bash
+$ oc create secret tls tls-secret --cert=tls.crt --key=tls.key
+```
 
-If you wish to add a SSL certificate now, you can edit the application template and provide that now.  Check the Edge Termination section of [Secured Routes](https://docs.openshift.org/latest/architecture/core_concepts/routes.html#secured-routes) for more information on that.
-This can be easily changed later in the Openshift UI by navigating to *Your Project* -> Applications -> Routes -> httpd -> Actions -> Edit.
+Application parameters can be specified in a parameters file. An example file can be found [in the project root](https://github.com/ManageIQ/manageiq-pods/blob/master/parameters)
+The existing parameters file contains all the default values for template parameters. You can create a new file containing any customizations.
 
 _**As basic user**_
 
 ```bash
-$ oc create -f templates/miq-template.yaml
-template "manageiq" created
-$ oc get templates
-NAME       DESCRIPTION                                  PARAMETERS     OBJECTS
-manageiq   ManageIQ appliance with persistent storage   55 (1 blank)   24
+$ ./bin/deploy <parameters_file>
 ```
-
-The supplied template provides customizable deployment parameters, use _oc process_ to see available parameters and descriptions
-
-`$ oc process --parameters -n <your-project> manageiq`
-
-Deploy MIQ from template using default settings
-
-`$ oc new-app --template=manageiq`
-
-Deploy MIQ from template using customized settings
-
-`$ oc new-app --template=manageiq -p DATABASE_VOLUME_CAPACITY=2Gi,POSTGRESQL_MEM_LIMIT=4Gi`
 
 ## Deploy MIQ using an external database
 
-Before you attempt an external DB deployment please ensure the following conditions are satisfied :
+Before you attempt an external DB deployment please ensure the following conditions are satisfied:
 
 * Your OpenShift cluster can access the external PostgreSQL server
-* The external PostgreSQL server must run at a minimum version 9.4 (9.5 if replication is desired), see [SCL PG instructions for CentOS/RHEL based hosts](https://www.softwarecollections.org/en/scls/rhscl/rh-postgresql95/)
+* The external PostgreSQL server must run version 10
 * MIQ user, password and role have been created on the external PostgreSQL server
 * The intended MIQ database is created and ownership has been assigned to the MIQ user
 
-Import the MIQ external db template
-
-`$ oc create -f templates/miq-template-ext-db.yaml`
-
-Launch deployment, database server IP is required, rest of settings must match your remote PG server side.
-
-`$ oc new-app --template=manageiq-ext-db -p DATABASE_IP=<server_ip> -p DATABASE_USER=<user> -p DATABASE_PASSWORD=<password> -p DATABASE_NAME=<database_name>`
+To use an external database, ensure that the `DATABASE_HOSTNAME` parameter is provided in your parameters file.
+`DATABASE_NAME`, `DATABASE_PORT`, `DATABASE_USER`, and `DATABASE_PASSWORD` should also be checked and set if necessary.
 
 ## Verifying the setup was successful
 
@@ -257,37 +205,18 @@ _**Note:**_ The first deployment could take several minutes as OpenShift is down
 
 ### Confirm the deployed MIQ pods are bound to the correct SCC
 
-Describe all pods and search for Security Policy
+Describe all pods and search for the pod name and scc
 
 ```bash
-$ oc describe pods | grep -B2 "Security Policy"
-Name:			httpd-1-5pnrz
-Security Policy:	anyuid
---
-Name:			manageiq-0
-Security Policy:	anyuid
---
-Name:			memcached-1-l3030
-Security Policy:	restricted
---
-Name:			postgresql-1-mz623
-Security Policy:	restricted
-```
-
-### Verify the persistent volumes are attached to postgresql and miq-app pods
-
-```bash
-$ oc volume pods --all
-pods/manageiq-0
-  pvc/manageiq-server-manageiq-0 (allocated 2GiB) as manageiq-server
-    mounted at /persistent
-  secret/default-token-nw0qi as default-token-nw0qi
-    mounted at /var/run/secrets/kubernetes.io/serviceaccount
-pods/postgresql-1-dufgp
-  pvc/manageiq-postgresql (allocated 2GiB) as miq-pgdb-volume
-    mounted at /var/lib/pgsql/data
-  secret/default-token-nw0qi as default-token-nw0qi
-    mounted at /var/run/secrets/kubernetes.io/serviceaccount
+$ oc describe pods | egrep "^Name:|openshift.io/scc"
+Name:               httpd-754985464b-4dzzx
+Annotations:        openshift.io/scc=anyuid
+Name:               manageiq-orchestrator-5997776478-vx4v9
+Annotations:        openshift.io/scc=anyuid
+Name:               memcached-696479b955-67fs6
+Annotations:        openshift.io/scc=restricted
+Name:               postgresql-5f954fdbd5-tnlmf
+Annotations:        openshift.io/scc=restricted
 ```
 
 ### Check readiness of the MIQ pods
@@ -298,54 +227,69 @@ The READY column denotes the number of replicas and their readiness state
 
 ```bash
 $ oc get pods
-NAME                 READY     STATUS    RESTARTS   AGE
-httpd-1-5pnrz        1/1       Running   0          1h
-manageiq-0           1/1       Running   0          1h
-memcached-1-l3030    1/1       Running   0          1h
-postgresql-1-mz623   1/1       Running   0          1h
+NAME                                     READY     STATUS    RESTARTS   AGE
+httpd-754985464b-4dzzx                   1/1       Running   0          37s
+manageiq-orchestrator-5997776478-vx4v9   1/1       Running   0          37s
+memcached-696479b955-67fs6               1/1       Running   0          37s
+postgresql-5f954fdbd5-tnlmf              1/1       Running   0          37s
+```
+
+Once the database has been migrated and the orchestrator pod is up and running, it will begin to start worker pods.
+After a few minutes you can see the initial set of worker pods has been deployed and the user interface should be accessible.
+
+```bash
+$ oc get pods
+NAME                                     READY     STATUS    RESTARTS   AGE
+event-handler-747574c54c-xpcvf           1/1       Running   0          32m
+generic-55cc84f79d-gwf5v                 1/1       Running   0          32m
+generic-55cc84f79d-w4vzs                 1/1       Running   0          32m
+httpd-754985464b-4dzzx                   1/1       Running   0          37m
+manageiq-orchestrator-5997776478-vx4v9   1/1       Running   0          37m
+memcached-696479b955-67fs6               1/1       Running   0          37m
+postgresql-5f954fdbd5-tnlmf              1/1       Running   0          37m
+priority-7b6666cdcd-5hkkm                1/1       Running   0          32m
+priority-7b6666cdcd-rcf7l                1/1       Running   0          32m
+remote-console-6958c4cc7b-5kmmj          1/1       Running   0          32m
+reporting-85c8488848-p5fb6               1/1       Running   0          32m
+reporting-85c8488848-z7kjp               1/1       Running   0          32m
+schedule-6fd7bc5688-ptsxp                1/1       Running   0          32m
+ui-5b8c86f6f9-jhd9w                      1/1       Running   0          32m
+web-service-858f55f55d-5tmcr             1/1       Running   0          32m
+
 ```
 
 ## Scale MIQ
 
-We use StatefulSets to allow scaling of MIQ appliances, before you attempt scaling please ensure you have enough PVs available to scale. Each new replica will consume a PV.
+ManageIQ worker deployments can be scaled from within the application web console.
+Navigate to Configuration -> Server -> Workers tab to change the number of worker replicas.
 
-Example scaling to 2 replicas/servers
+Additional workers for provider operations will be deployed or removed by the orchestrator as providers are added or removed and as roles change.
 
-```bash
-$ oc scale statefulset manageiq --replicas=2
-statefulset "manageiq" scaled
-$ oc get pods
-NAME                 READY     STATUS    RESTARTS   AGE
-manageiq-0           1/1       Running   0          34m
-manageiq-1           1/1       Running   0          5m
-memcached-1-mzeer    1/1       Running   0          1h
-postgresql-1-dufgp   1/1       Running   0          1h
-```
+_**Note:**_ The orchestrator will enforce its desired state over the worker replicas. This means that any changes made to desired replica numbers in the OpenShift UI will be quickly reverted by the orchestrator. 
 
-The newly created replicas will join the existing MIQ region. For a StatefulSet with N replicas, when Pods are being deployed, they are created sequentially, in order from {0..N-1}.
-
-_**Note:**_ As of Origin 1.5 StatefulSets are a beta feature, be aware functionality might be limited.
-
-## POD access and routes
+## Pod access and ingress
 
 ### Get a shell on the MIQ pod
 
 `$ oc rsh <pod_name> bash -l`
 
 ### Obtain host information from route
-A route should have been deployed via template for HTTPS access on the MIQ pod
+An ingress should have been deployed via template for HTTPS access on the MIQ pod
+When an ingress is deployed in OpenShift, a route is automatically created.
 
 ```bash
-$oc get routes
-NAME      HOST/PORT                              PATH      SERVICES   PORT      TERMINATION     WILDCARD
-httpd     miq-dev.apps.example.com                         httpd      http      edge/Redirect   None
+$ oc get ingress
+NAME      HOSTS                              ADDRESS   PORTS     AGE
+httpd     miq-dev.apps.example.com                     80, 443   56s
+$ oc get routes
+NAME          HOST/PORT                          PATH      SERVICES   PORT      TERMINATION     WILDCARD
+httpd-qlvmj   miq-dev.apps.example.com           /         httpd      80        edge/Redirect   None
 ```
 Examine output and point your web browser to the reported URL/HOST.
 
 ### Logging In
 
-Per the ManageIQ project [basic configuration](http://manageiq.org/docs/get-started/basic-configuration) documentation, you can now login to the MIQ web interface
-using the default name/password: `admin`/`smartvm`.
+Per the ManageIQ project [basic configuration](http://manageiq.org/docs/get-started/basic-configuration) documentation, you can now login to the MIQ web interface using the default username (`admin`) and either the default password (`smartvm`) of the password configured using the `APPLICATION_ADMIN_PASSWORD` parameter.
 
 ## Backup and restore of the MIQ database
 
@@ -357,13 +301,13 @@ A sample backup PV is supplied on templates, adjust the default settings to your
 
 _** As admin user**_
 
-`$ oc create -f miq-pv-backup-example.yaml`
+`$ oc create -f templates/miq-pv-backup-example.yaml`
 
 ### Create the backup PVC
 
 _**As basic user**_
 
-`$ oc create -f miq-backup-pvc.yaml`
+`$ oc create -f templates/miq-backup-pvc.yaml`
 
 ### Verify the backup PVC was created correctly
 
@@ -371,10 +315,9 @@ The backup and restore job samples expect PVCs to be named "manageiq-backup" and
 
 ```bash
 $ oc get pvc
-NAME                         STATUS    VOLUME    CAPACITY   ACCESSMODES   AGE
-manageiq-backup              Bound     pv05      15Gi       RWO           1d
-manageiq-postgresql          Bound     pv12      15Gi       RWO           1d
-manageiq-server-manageiq-0   Bound     pv01      5Gi        RWO           1d
+NAME                  STATUS    VOLUME    CAPACITY   ACCESSMODES   STORAGECLASS   AGE
+manageiq-backup       Bound     pv0062    100Gi      RWO,ROX,RWX                  44s
+manageiq-postgresql   Bound     pv0017    100Gi      RWO,ROX,RWX                  17m
 ```
 
 ### Backup API objects at the project level
@@ -390,7 +333,7 @@ The MIQ secrets object contains important data regarding your deployment such as
 
 Backups can be initiated with the database online, the job will attempt to run immediately after creation.
 
-`$ oc create -f miq-backup-job.yaml`
+`$ oc create -f templates/miq-backup-job.yaml`
 
 The backup job will connect to the MIQ database pod and perform a full binary backup of the entire database cluster, it is based on pg_basebackup.
 
@@ -417,7 +360,7 @@ Backup stored at : /backups/miq_backup_20170727T023044
 **The database restoration must be done OFFLINE**, scale down prior attempting this procedure otherwise corruption can occur.
 
 ```bash
-$ oc scale statefulset manageiq --replicas=0
+$ oc scale dc/manageiq-orchestrator --replicas=0 # this should scale down all the worker pods as well
 $ oc scale dc/httpd --replicas=0
 $ oc scale dc/postgresql --replicas=0
 ```
@@ -462,7 +405,7 @@ Sucessfully finished DB restore : Thu Jul 27 05:20:33 UTC 2017
 Check the PG pod logs and readiness status, if successful, proceed to re-scale rest of deployment
 
 ```bash
-$ oc scale statefulset manageiq --replicas=1
+$ oc scale dc/manageiq-orchestrator --replicas=1
 $ oc scale dc/httpd --replicas=1
 ```
 
@@ -470,87 +413,34 @@ $ oc scale dc/httpd --replicas=1
 Under normal circumstances the entire first time deployment process should take around ~10 minutes, indication of issues can be seen
 by examination of the deployment events and pod logs.
 
-### Re-trying a failed deployment
+## Building Images
+The bin/build script will build the entire chain of images.
 
-_**As basic user**_
+The script requires at a minimum the `-d` option to specify the location of the `images` directory, (`./images` if run from the repo root) and the `-r` option to specify the resulting image repo and namespace.
 
-
-```bash
-$ oc get pods
-NAME                 READY     STATUS    RESTARTS   AGE
-manageiq-1-deploy    0/1       Error     0          25m
-memcached-1-yasfq    1/1       Running   0          24m
-postgresql-1-wfv59   1/1       Running   0          24m
-
-$ oc deploy manageiq --retry
-Retried #1
-Use 'oc logs -f dc/manageiq' to track its progress.
-```
-Allow a few seconds for the failed pod to get re-scheduled, then begin checking events and logs
+For example, if you wanted to build all the images tagged as `manageiq/<image-name>:latest`, you would run the following command from the repo root.
 
 ```bash
-$ oc describe pods <pod-name>
-...
-Events:
-  FirstSeen	LastSeen	Count	From							SubobjectPath			Type		Reason		Message
-  ---------	--------	-----	----							-------------			--------	------		-------
-15m		15m		1	{kubelet ocp-eval-node-2.e2e.bos.redhat.com}	spec.containers{manageiq}	Warning		Unhealthy	Readiness probe failed: Get http://10.1.1.5:80/: dial tcp 10.1.1.5:80: getsockopt: connection refused
+./bin/build -d images -r manageiq
 ```
 
-Liveness and Readiness probe failures indicate the pod is taking longer than expected to come alive/online, check pod logs.
+Additional options are also available:
+  - `-n` Use the --no-cache option when running the manageiq-base image build
+  - `-p` Push the images after building
+  - `-t <tag>` Tag the built images with the specified tag (default: latest)
 
-_**Note:**_ The miq-app container is systemd based, use _oc rsh_ instead of _oc logs_ to obtain journal dumps
+Additionally the source fork and git ref for manageiq, manageiq-appliance and manageiq-ui-service can be set using the following environment variables:
+  - `MIQ_REF`
+  - `APPLIANCE_REF`
+  - `SUI_REF`
+  - `MIQ_ORG`
+  - `APPLIANCE_ORG`
+  - `SUI_ORG`
 
-`$ oc rsh <pod-name> journalctl -x`
-
-It might also be useful to transfer all logs from the miq-app pod to a directory on the host for further examination, we can use _oc rsync_ for this task.
+A more complicated example would be to build and push all the images to the quay.io repository "test" using the source from the "feature" branch on the "example" fork of ManageIQ:
 
 ```bash
-$ oc rsync <pod-name>:/persistent/container-deploy/log /tmp/fail-logs/
-receiving incremental file list
-log/
-log/appliance_initialize_1477272109.log
-log/restore_pv_data_1477272010.log
-log/sync_pv_data_1477272010.log
-
-sent 72 bytes  received 1881 bytes  1302.00 bytes/sec
-total size is 1585  speedup is 0.81
-```
-
-## Building Images on OpenShift
-It is possible to build the images from this repository (or any of other) using OpenShift:
-
-```bash
-$ oc -n <your-namespace> new-build --context-dir=images/miq-app https://github.com/ManageIQ/manageiq-pods#master
-```
-
-In addition it is also suggested to tweak the following `dockerStrategy` parameters to ensure fresh builds every time:
-
-```bash
-$ oc edit bc -n <your-namespace> manageiq-pods
-```
-
-```yaml
-strategy:
-  dockerStrategy:
-    forcePull: true
-    noCache: true
-```
-
-To execute new builds after the first (automatically started) you can execute:
-
-```bash
-$ oc start-build -n <your-namespace> manageiq-pods
-```
-
-To take advantage of the newly built image you should configure the following template parameters:
-
-```bash
-$ oc new-app --template=manageiq \
-  -n <your-namespace> \
-  -p APPLICATION_IMG_NAME=<your-container-registry>:5000/<your-namespace>/manageiq-pods \
-  -p APPLICATION_IMG_TAG=latest \
-  ...
+MIQ_ORG=example MIQ_REF=feature ./bin/build -d images -r quay.io/test -p
 ```
 
 ## Configuring External Authentication
@@ -670,3 +560,20 @@ $ oc replace configmaps httpd-auth-configs --filename external-auth-configmap.ya
 Then redeploy the httpd pod for the new authentication configuration to take effect.
 
 Support for automatically generating authentication configuration maps for the httpd pod is provided by [ManageIQ/httpd\_configmap\_generator](https://github.com/ManageIQ/httpd_configmap_generator). Please see the [README.md](https://github.com/ManageIQ/httpd_configmap_generator/blob/master/README.md) in that repo for further details.
+
+## Kubernetes support
+
+The objects created by processing the templates in this project are also compatible with Kubernetes, but template objects themselves are not.
+For this reason, it is suggested to use the `oc` binary to process the templates and create the objects even in a kubernetes cluster (this is what the `bin/deploy` script does).
+
+Here is an example of how to deploy to a kubernetes cluster using minikube:
+
+```bash
+minikube start
+<edit parameters file as desired>
+bin/deploy parameters
+oc patch deployment httpd -p '{"spec":{"template":{"spec":{"containers":[{"name": "httpd", "securityContext":{"capabilities":{"add":["SYS_ADMIN"]}}}]}}}}'
+```
+
+It is necessary to patch the httpd deployment because it runs systemd in the container.
+In OpenShift this is handled by the oci-systemd-hooks and scc assignment, but in kubernetes we need to add the capability directly to the container.
