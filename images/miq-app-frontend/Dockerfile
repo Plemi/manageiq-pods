@@ -49,9 +49,10 @@ RUN source /etc/default/evm && \
     rm -vf ${APP_ROOT}/log/*.log
 
 ## Build SUI
-RUN source /etc/default/evm && \
+ RUN source /etc/default/evm && \
     cd ${SUI_ROOT} && \
-    yarn install --production && \
+#   yarn install --production && \
+    yarn install --dev && \
     yarn run build && \
     yarn cache clean
 
