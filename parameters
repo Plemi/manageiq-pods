@@ -1,3 +1,6 @@
+# Application name used for deployed objects
+APP_NAME=manageiq
+
 # admin user initial password
 APPLICATION_ADMIN_PASSWORD=smartvm
 
@@ -13,6 +16,15 @@ DATABASE_NAME=vmdb_production
 DATABASE_PORT=5432
 DATABASE_USER=root
 #DATABASE_PASSWORD=
+
+# Kafka connection information
+# Containerized kafka pod will be deployed if hostname is not provided
+# Password will be generated ([a-zA-Z0-9]{8}) if not provided
+MESSAGING_TYPE=kafka
+#MESSAGING_HOSTNAME=kafka
+MESSAGING_PORT=9092
+MESSAGING_USERNAME=root
+#MESSAGING_PASSWORD=
 
 # Application region number
 DATABASE_REGION=0
@@ -35,6 +47,9 @@ HTTPD_IMAGE_TAG=latest
 HTTPD_MEM_LIMIT=8192Mi
 HTTPD_MEM_REQ=512Mi
 
+# Image pull secret to use for the orchestrator and worker images
+#IMAGE_PULL_SECRET=
+
 # memcached pod deployment information
 MEMCACHED_CPU_REQ=200m
 MEMCACHED_IMAGE_NAME=manageiq/memcached
@@ -56,8 +71,12 @@ ORCHESTRATOR_MEM_REQ=6144Mi
 # database pod deployment information
 POSTGRESQL_CPU_REQ=500m
 POSTGRESQL_IMG_NAME=docker.io/manageiq/postgresql
-POSTGRESQL_IMG_TAG=latest
+POSTGRESQL_IMG_TAG=10
 POSTGRESQL_MAX_CONNECTIONS=1000
 POSTGRESQL_MEM_LIMIT=8Gi
 POSTGRESQL_MEM_REQ=4Gi
 POSTGRESQL_SHARED_BUFFERS=1GB
+
+# Kafka deployment information
+KAFKA_VOLUME_CAPACITY=1Gi
+ZOOKEEPER_VOLUME_CAPACITY=1Gi

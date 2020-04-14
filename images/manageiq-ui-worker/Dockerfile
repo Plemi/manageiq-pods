@@ -10,9 +10,9 @@ LABEL name="manageiq-ui-worker" \
       summary="ManageIQ user interface worker image"
 
 # Install httpd and remove the existing httpd config from manageiq-appliance
-RUN yum -y install httpd --setopt=tsflags=nodocs && \
+RUN dnf -y --disableplugin=subscription-manager --setopt=tsflags=nodocs install httpd && \
     rm -f /etc/httpd/conf.d/* && \
-    yum clean all
+    dnf clean all
 
 COPY container-assets/npm_registry /tmp/npm_registry
 
@@ -35,8 +35,10 @@ RUN source /etc/default/evm && \
     rm -vf ${APP_ROOT}/log/*.log
 
 # Build service UI
+# PhantomJS is required only for testing and can be by-passed here
 RUN source /etc/default/evm && \
     cd ${SUI_ROOT} && \
+    sed -i '/phantomjs/d' package.json && \
     yarn install && \
     yarn run available-languages && \
     yarn run build

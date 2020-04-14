@@ -5,10 +5,20 @@ TAG=latest
 MIQ_REF=${MIQ_REF:-master}
 SUI_REF=${SUI_REF:-master}
 APPLIANCE_REF=${APPLIANCE_REF:-master}
+BUILD_REF=${BUILD_REF:-master}
 
 MIQ_ORG=${MIQ_ORG:-ManageIQ}
 SUI_ORG=${SUI_ORG:-ManageIQ}
 APPLIANCE_ORG=${APPLIANCE_ORG:-ManageIQ}
+BUILD_ORG=${BUILD_ORG:-ManageIQ}
+
+ARCH=`uname -m`
+CORE_REPO_NAME=${CORE_REPO_NAME:-manageiq}
+
+GIT_HOST=${GIT_HOST:-github.com}
+GIT_AUTH=${GIT_AUTH:-""}
+
+HOOKS_SCRIPT_URL=${HOOKS_SCRIPT_URL:-""}
 
 NPM_REGISTRY_OVERRIDE=${NPM_REGISTRY_OVERRIDE:-""}
 
@@ -37,12 +47,20 @@ set -e
 
 pushd $IMAGE_DIR
   cmd="docker build --tag $REPO/manageiq-base:$TAG \
+                    --pull \
                     --build-arg MIQ_REF=$MIQ_REF \
                     --build-arg SUI_REF=$SUI_REF\
                     --build-arg APPLIANCE_REF=$APPLIANCE_REF \
+                    --build-arg BUILD_REF=$BUILD_REF \
                     --build-arg MIQ_ORG=$MIQ_ORG \
                     --build-arg SUI_ORG=$SUI_ORG \
-                    --build-arg APPLIANCE_ORG=$APPLIANCE_ORG"
+                    --build-arg APPLIANCE_ORG=$APPLIANCE_ORG \
+                    --build-arg BUILD_ORG=$BUILD_ORG \
+                    --build-arg GIT_AUTH=$GIT_AUTH \
+                    --build-arg GIT_HOST=$GIT_HOST \
+                    --build-arg HOOKS_SCRIPT_URL=$HOOKS_SCRIPT_URL \
+                    --build-arg CORE_REPO_NAME=$CORE_REPO_NAME \
+                    --build-arg ARCH=$ARCH"
 
   if [ -n "$NO_CACHE" ]; then
     cmd+=" --no-cache"
