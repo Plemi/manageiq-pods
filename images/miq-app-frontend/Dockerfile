@@ -1,5 +1,5 @@
 ARG IMAGE_REF=latest-ivanchuk
-FROM manageiq/manageiq-pods:backend-${IMAGE_REF}
+FROM plemipublic/manageiq-pods:backend-${IMAGE_REF}
 MAINTAINER ManageIQ https://github.com/ManageIQ/manageiq-appliance-build
 
 ## Set build ARGs
@@ -27,7 +27,8 @@ RUN yum -y install httpd --setopt=tsflags=nodocs && \
 
 ## GIT clone service UI repo (SUI)
 RUN mkdir -p ${SUI_ROOT} && \
-    curl -L https://github.com/ManageIQ/manageiq-ui-service/tarball/${REF} | tar vxz -C ${SUI_ROOT} --strip 1
+    # curl -L https://github.com/ManageIQ/manageiq-ui-service/tarball/${REF} | tar vxz -C ${SUI_ROOT} --strip 1
+    curl -L https://github.com/Plemi/manageiq-ui-service/tarball/${REF} | tar vxz -C ${SUI_ROOT} --strip 1
 
 ## Setup environment
 RUN rm -f /etc/httpd/conf.d/ssl.conf && \
